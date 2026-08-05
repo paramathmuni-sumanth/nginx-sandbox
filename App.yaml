@@ -1,0 +1,24 @@
+# nginx-sandbox/App.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-sandbox
+spec:
+  project: foundationlayer
+  source:
+    repoURL: https://github.com/paramathmuni-sumanth/nginx-sandbox
+    path: nginx-sandbox
+    targetRevision: platform1-dev
+    helm:
+      valueFiles:
+        - values.yaml
+      releaseName: nginx-sandbox
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sumanth-sandbox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

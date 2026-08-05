@@ -1,0 +1,7 @@
+# nginx-sandbox/Chart.yaml
+apiVersion: v2
+name: nginx-sandbox
+description: Reusable, general-purpose scratch workload for future POCs (labels, policies, sidecars, etc.) on platform1-dev
+type: application
+version: "0.1.0"
+appVersion: "1.0.0"
