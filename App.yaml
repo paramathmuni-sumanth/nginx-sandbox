@@ -14,10 +14,8 @@ spec:
       releaseName: nginx-sandbox
   destination:
     server: https://kubernetes.default.svc
-    namespace: sumanth-sandbox
+    namespace: io
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
