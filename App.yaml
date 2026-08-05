@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: nginx-sandbox
 spec:
-  project: foundationlayer
+  project: testing
   source:
     repoURL: https://github.com/paramathmuni-sumanth/nginx-sandbox.git
     path: .
