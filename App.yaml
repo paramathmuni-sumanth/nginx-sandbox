@@ -14,7 +14,7 @@ spec:
       releaseName: nginx-sandbox
   destination:
     server: https://kubernetes.default.svc
-    namespace: io
+    namespace: testing
   syncPolicy:
     automated:
       prune: true
