@@ -1,0 +1,20 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "nginx-sandbox.labels" . | nindent 4 }}
+    {{- if .Values.namespace.splunkExclude }}
+    splunk.com/exclude: "true"
+    {{- end }}
+  {{- if or .Values.namespace.splunkExclude .Values.namespace.annotations }}
+  annotations:
+    {{- if .Values.namespace.splunkExclude }}
+    splunk.com/exclude: "true"
+    {{- end }}
+    {{- with .Values.namespace.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

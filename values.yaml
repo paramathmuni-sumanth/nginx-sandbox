@@ -19,6 +19,22 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Dedicated namespace for this sandbox so Splunk OTel exclude tests do not
+# touch other apps in `testing`.
+# Gate A (collector values, not this chart):
+#   logsCollection.containers.excludePaths:
+#     - /var/log/pods/nginx-sandbox_*/*/*.log
+# Gate B: label + annotation splunk.com/exclude=true on this Namespace.
+# The collector filter/logs processor reads the annotation (pod or namespace),
+# not the label. The label is for visibility / kubectl selection.
+#   kubectl label ns nginx-sandbox splunk.com/exclude=true --overwrite
+#   kubectl annotate ns nginx-sandbox splunk.com/exclude=true --overwrite
+namespace:
+  create: true
+  splunkExclude: true
+  annotations: {}
+
+
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # Specifies whether a service account should be created.
