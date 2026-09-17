@@ -151,6 +151,22 @@ readinessProbe:
     path: /
     port: http
 
+# Container lifecycle hooks. `preStop.httpGet` takes precedence over `preStop.exec`,
+# matching the celigo/helm-charts microservice chart so POC results transfer directly.
+# An `exec` preStop spawns a shell inside the container and is therefore subject to
+# KubeArmor process policy; an `httpGet` preStop is performed by the kubelet and is not.
+lifecycle: {}
+  # preStop:
+  #   exec:
+  #     command: ["sh", "-c", "..."]
+  #   httpGet:
+  #     path: /
+  #     port: 80
+
+# Time the kubelet waits after preStop before SIGKILL. A blocked preStop hook burns
+# this entire window, so keep it long enough to be observable in the POC.
+terminationGracePeriodSeconds: 60
+
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
   enabled: false

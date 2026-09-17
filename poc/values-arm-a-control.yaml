@@ -1,0 +1,19 @@
+# Arm A — CONTROL. Opted out of the KubeArmor policy via the kubearmor-debug
+# escape hatch, so the shell-based preStop must succeed. If this arm fails the
+# harness itself is broken and arms B/C tell you nothing.
+#
+#   helm upgrade --install nginx-sandbox . -f values.yaml -f poc/values-arm-a-control.yaml
+
+podLabels:
+  kubearmor-policy: block-exec
+  kubearmor-debug: "true"
+
+terminationGracePeriodSeconds: 60
+
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - sh
+        - -c
+        - 'echo "PRESTOP_RAN arm=A-control ts=$(date -Is)" > /proc/1/fd/1; wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1; sleep 3'

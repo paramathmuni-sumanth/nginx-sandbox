@@ -28,6 +28,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "nginx-sandbox.serviceAccountName" . }}
+      {{- with .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -51,6 +54,17 @@ spec:
           {{- with .Values.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.lifecycle.preStop }}
+          lifecycle:
+            preStop:
+              {{- if .Values.lifecycle.preStop.httpGet }}
+              httpGet:
+                {{- toYaml .Values.lifecycle.preStop.httpGet | nindent 16 }}
+              {{- else if .Values.lifecycle.preStop.exec }}
+              exec:
+                {{- toYaml .Values.lifecycle.preStop.exec | nindent 16 }}
+              {{- end }}
           {{- end }}
           {{- with .Values.resources }}
           resources:

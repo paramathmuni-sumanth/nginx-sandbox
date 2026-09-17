@@ -1,0 +1,17 @@
+# Arm C — PROPOSED FIX. Policy applies (no kubearmor-debug label), but the hook is
+# httpGet, executed by the kubelet against the pod rather than by a shell inside it.
+# No process is spawned in the container, so KubeArmor has nothing to evaluate.
+#
+#   helm upgrade --install nginx-sandbox . -f values.yaml -f poc/values-arm-c-httpget.yaml
+
+podLabels:
+  kubearmor-policy: block-exec
+
+terminationGracePeriodSeconds: 60
+
+lifecycle:
+  preStop:
+    httpGet:
+      path: /
+      port: 80
+      scheme: HTTP
