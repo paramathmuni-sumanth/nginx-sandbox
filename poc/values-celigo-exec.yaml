@@ -1,5 +1,9 @@
 # App 1 — Celigo's current preStop (exec + sh + wget loop).
-# Policy applies. Expected: hook blocked, ~60s to die, FailedPreStopHook.
+# Policy applies. Expected: hook blocked, fast termination, FailedPreStopHook.
+#
+# Kubernetes starts the grace-period clock before preStop, but a hook denied
+# immediately does not consume the remaining grace period. The 60s value is a
+# safety ceiling for hooks that keep running; elapsed time is not the assertion.
 #
 #   helm upgrade --install nginx-celigo . -n nginx-sandbox --create-namespace \
 #     -f values.yaml -f poc/values-celigo-exec.yaml

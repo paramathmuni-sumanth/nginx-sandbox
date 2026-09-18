@@ -1,141 +1,111 @@
-# KubeArmor preStop POC — two nginx apps on platform1-dev
+# KubeArmor preStop POC — platform1-dev
 
-Two Helm releases in `nginx-sandbox`. Same policy. Different preStop.
+Two one-replica nginx releases run in `nginx-sandbox`. They use the same
+KubeArmor policy and differ only in their preStop handler.
 
-| Release | preStop | Expected on `kubectl delete pod` |
+| Release | preStop | Expected evidence |
 |---|---|---|
-| `nginx-celigo` | Celigo `exec sh` + wget `/openConnections` | **Blocked** · ~60s · `FailedPreStopHook` · no `PRESTOP_RAN` |
-| `nginx-drain` | `httpGet /drain` | **Runs** · a few seconds · `GET /drain` in logs · no failed hook |
+| `nginx-celigo` | Current Celigo `exec` → `sh` → wget loop | KubeArmor denies `/bin/sh`; `FailedPreStopHook`; `PRESTOP_RAN` absent |
+| `nginx-drain` | `httpGet /drain` | nginx logs `GET /drain`; no failed-hook event |
 
-Both pods must still reject `kubectl exec -- sh`. That is the policy working.
+Both replacement pods must reject `kubectl exec -- /bin/sh`. This proves the
+HTTP solution does not weaken shell enforcement.
 
-`/drain` here is **this chart’s nginx config**, not an app-team endpoint. Body is always `drained`. It only proves kubelet can finish preStop without spawning `sh`.
+> Timing is supporting data, not the assertion. Kubernetes starts the
+> termination grace-period clock before preStop, but a hook denied immediately
+> normally fails immediately and termination continues. A hook that remains
+> stuck is bounded by the grace period (plus Kubernetes' small one-off
+> extension), after which the container is forcibly terminated.
 
-## 0. Login
+## Scope and limitations
 
-```bash
-aws login
-CTX=platform1-dev/ap-south-1/aws-eks
-kubectl --context $CTX get pods -n kubearmor
-```
+- The POC policy selects only the `nginx-sandbox` namespace.
+- The existing policy for `di`, `ia`, `io`, `core`, and `ui` is not changed.
+- `/drain` is implemented by this chart's nginx ConfigMap and returns `200`
+  immediately. It proves the kubelet HTTP path, not production connection
+  draining.
+- Real services still need a blocking app endpoint (or equivalent design) that
+  stops admission, waits for tracked work, and returns success before the
+  grace-period deadline.
+- Nothing in this branch deploys automatically. You invoke each cluster action.
 
-## 1. Policy (once)
+## Files
 
-Do **not** hand-edit live `block-exec`. Argo will revert it.
+| File | Purpose |
+|---|---|
+| `poc/values-celigo-exec.yaml` | Current Celigo shell-based preStop |
+| `poc/values-httpget-drain.yaml` | Proposed kubelet `httpGet` preStop |
+| `templates/configmap.yaml` | nginx `/openConnections`, `/stopServer`, and `/drain` stand-ins |
+| `poc/run-poc.sh` | Validates, deploys, tests, and collects evidence |
+| `poc/FINDINGS.md` | Result sheet to complete after the run |
 
-Apply the POC policy from the other worktree. If Argo prunes it, merge
-`foundational-layers-helm-values` branch `kubearmor-prestop-poc` into `platform1-dev`
-and wait for the kubearmor Application to sync.
+The policy is in the separate worktree:
 
-```bash
-kubectl --context $CTX apply -f \
-  ~/Desktop/projects/worktrees/foundational-layers-helm-values/kubearmor-prestop-poc/kubearmor/policies/poc-prestop-block-exec.yaml
+`~/Desktop/projects/worktrees/foundational-layers-helm-values/kubearmor-prestop-poc/kubearmor/policies/poc-prestop-block-exec.yaml`
 
-kubectl --context $CTX get kubearmorclusterpolicy poc-prestop-block-exec
-```
-
-Confirm it selects namespace `nginx-sandbox` and excludes `kubearmor-debug=true`.
-
-## 2. Alerts (leave running)
-
-```bash
-AGENT=$(kubectl --context $CTX get pod -n kubearmor -l kubearmor-app=kubearmor \
-  -o jsonpath='{.items[0].metadata.name}')
-kubectl --context $CTX port-forward -n kubearmor $AGENT 32767:32767 &
-karmor logs --gRPC localhost:32767 --json | tee /tmp/armor-poc.jsonl
-```
-
-## 3. Both apps
+## Run
 
 ```bash
 cd ~/Desktop/projects/worktrees/nginx-sandbox/kubearmor-prestop-poc
+chmod +x poc/run-poc.sh
 
-helm upgrade --install nginx-celigo . \
-  --kube-context $CTX \
-  -n nginx-sandbox --create-namespace \
-  -f values.yaml -f poc/values-celigo-exec.yaml
+# Local only: lint and render both releases.
+./poc/run-poc.sh validate
 
-helm upgrade --install nginx-drain . \
-  --kube-context $CTX \
-  -n nginx-sandbox \
-  -f values.yaml -f poc/values-httpget-drain.yaml
+aws login
+export CTX=platform1-dev/ap-south-1/aws-eks
 
-kubectl --context $CTX get pods -n nginx-sandbox -o wide
+# Cluster actions: run these yourself, in order.
+./poc/run-poc.sh policy
+./poc/run-poc.sh deploy
+./poc/run-poc.sh status
 ```
 
-You should see one `nginx-celigo-*` and one `nginx-drain-*`.
+If Argo prunes a manually applied policy, merge the
+`foundational-layers-helm-values` branch `kubearmor-prestop-poc` into
+`platform1-dev` and wait for the `kubearmor` Application to sync. Do not edit
+the live `block-exec` policy.
 
-## 4. Sanity: /drain and /openConnections exist
+## Capture KubeArmor alerts
+
+Run this in a second terminal before the test:
 
 ```bash
-CELIGO=$(kubectl --context $CTX get pod -n nginx-sandbox -l poc-arm=celigo-exec -o jsonpath='{.items[0].metadata.name}')
-DRAIN=$(kubectl --context $CTX get pod -n nginx-sandbox -l poc-arm=httpget-drain -o jsonpath='{.items[0].metadata.name}')
+AGENT=$(kubectl --context "$CTX" get pod -n kubearmor \
+  -l kubearmor-app=kubearmor \
+  -o jsonpath='{.items[0].metadata.name}')
 
-# httpGet into the pod network namespace without a shell — if this fails, fix the ConfigMap first
-kubectl --context $CTX exec -n nginx-sandbox $DRAIN -- wget -qO- http://127.0.0.1/drain; echo
-kubectl --context $CTX exec -n nginx-sandbox $CELIGO -- wget -qO- http://127.0.0.1/openConnections; echo
+kubectl --context "$CTX" port-forward -n kubearmor "$AGENT" 32767:32767 &
+karmor logs --gRPC localhost:32767 --json |
+  tee /tmp/kubearmor-prestop-alerts.jsonl
 ```
 
-`exec wget` may itself be blocked (busybox). If exec is denied, skip this and go to step 5 —
-kubelet’s `httpGet` does not use exec.
-
-## 5. Delete both, time them
+Then run:
 
 ```bash
-kubectl --context $CTX logs -n nginx-sandbox $CELIGO > /tmp/poc-celigo.log &
-kubectl --context $CTX logs -n nginx-sandbox $DRAIN > /tmp/poc-drain.log &
-
-echo "=== celigo exec preStop ==="
-time kubectl --context $CTX delete pod -n nginx-sandbox $CELIGO --wait=true
-
-echo "=== httpGet /drain ==="
-time kubectl --context $CTX delete pod -n nginx-sandbox $DRAIN --wait=true
+./poc/run-poc.sh test
 ```
 
-Then:
+The script prints the evidence directory. Copy its observations into
+`poc/FINDINGS.md` and attach the relevant KubeArmor records.
 
-```bash
-grep PRESTOP_RAN /tmp/poc-celigo.log || echo "NO PRESTOP_RAN on celigo (expected if blocked)"
-grep drain /tmp/poc-drain.log || echo "look for GET /drain in drain pod logs"
+## Pass criteria
 
-kubectl --context $CTX get events -n nginx-sandbox \
-  --field-selector reason=FailedPreStopHook --sort-by=.lastTimestamp | tail -10
-```
+| Assertion | Pass |
+|---|---|
+| Policy applies to both pods | `/bin/sh` via `kubectl exec` is denied on both |
+| Celigo hook collides with policy | Celigo pod has `FailedPreStopHook`; marker absent; KubeArmor records `/bin/sh` denial |
+| HTTP hook bypasses process execution safely | nginx records `GET /drain`; no failed-hook event |
+| Workloads recover | Deployments return to `1/1` after both test pods are deleted |
 
-| | celigo | drain |
-|---|---|---|
-| wall clock | ~60s | a few seconds |
-| `PRESTOP_RAN` | absent | n/a (no shell) |
-| access log `GET /drain` | no | yes |
-| `FailedPreStopHook` | yes | no |
-
-## 6. Policy still blocks shells
-
-After the deployments recreate pods:
-
-```bash
-CELIGO=$(kubectl --context $CTX get pod -n nginx-sandbox -l poc-arm=celigo-exec -o jsonpath='{.items[0].metadata.name}')
-DRAIN=$(kubectl --context $CTX get pod -n nginx-sandbox -l poc-arm=httpget-drain -o jsonpath='{.items[0].metadata.name}')
-
-kubectl --context $CTX exec -n nginx-sandbox $CELIGO -- /bin/sh -c 'echo hi'; echo "celigo rc=$?"
-kubectl --context $CTX exec -n nginx-sandbox $DRAIN -- /bin/sh -c 'echo hi'; echo "drain rc=$?"
-```
-
-Non-zero on **both** is success.
+Wall-clock duration is recorded for context only. Do not fail the POC merely
+because the blocked hook terminates faster than 60 seconds.
 
 ## Cleanup
 
 ```bash
-helm uninstall nginx-celigo --kube-context $CTX -n nginx-sandbox
-helm uninstall nginx-drain --kube-context $CTX -n nginx-sandbox
-kubectl --context $CTX delete ns nginx-sandbox
-kubectl --context $CTX delete kubearmorclusterpolicy poc-prestop-block-exec
+./poc/run-poc.sh cleanup
 ```
 
-If the policy was merged to `platform1-dev`, remove the file there and let Argo prune.
-
-## What this does *not* prove
-
-Real Celigo services still need a **blocking** `/drain` (or equivalent) in process code.
-This nginx `/drain` always returns 200 immediately. It only answers: does `httpGet`
-survive `block-exec`.
+If the policy was merged into `platform1-dev`, remove it through Git and let
+Argo prune it instead of deleting it manually.
