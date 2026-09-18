@@ -6,7 +6,7 @@ KubeArmor policy and differ only in their preStop handler.
 | Release | preStop | Expected evidence |
 |---|---|---|
 | `nginx-celigo` | Current Celigo `exec` → `sh` → wget loop | KubeArmor denies `/bin/sh`; `FailedPreStopHook`; `PRESTOP_RAN` absent |
-| `nginx-drain` | `httpGet /drain` | nginx logs `GET /drain`; no failed-hook event |
+| `nginx-drain` | `httpGet /drain` **port 8080** (`conn-mock`) | mock logs `/drain`; no failed-hook event |
 
 Both replacement pods must reject `kubectl exec -- /bin/sh`. This proves the
 HTTP solution does not weaken shell enforcement.
@@ -21,9 +21,8 @@ HTTP solution does not weaken shell enforcement.
 
 - The POC policy selects only the `nginx-sandbox` namespace.
 - The existing policy for `di`, `ia`, `io`, `core`, and `ui` is not changed.
-- `/drain` is implemented by this chart's nginx ConfigMap and returns `200`
-  immediately. It proves the kubelet HTTP path, not production connection
-  draining.
+- `/drain` that preStop uses is **`conn-mock` on :8080** (`poc/mock-open-connections.py`).
+  nginx `:80/drain` is a stub and is not used by kubelet.
 - Real services still need a blocking app endpoint (or equivalent design) that
   stops admission, waits for tracked work, and returns success before the
   grace-period deadline.
@@ -34,9 +33,12 @@ HTTP solution does not weaken shell enforcement.
 
 | File | Purpose |
 |---|---|
-| `poc/values-celigo-exec.yaml` | Current Celigo shell-based preStop |
-| `poc/values-httpget-drain.yaml` | Proposed kubelet `httpGet` preStop |
-| `templates/configmap.yaml` | nginx `/openConnections`, `/stopServer`, and `/drain` stand-ins |
+| `poc/INVENTORY.md` | Repo/worktree/file map — includes **conn-mock** |
+| `poc/mock-open-connections.py` | **conn-mock** counter (`/hold`, `/openConnections`, `/drain`) |
+| `templates/configmap-conn-mock.yaml` | Mounts conn-mock into the pod |
+| `poc/values-celigo-exec.yaml` | Current Celigo shell-based preStop → `:8080` |
+| `poc/values-httpget-drain.yaml` | kubelet `httpGet /drain` → `:8080` |
+| `templates/configmap.yaml` | nginx `:80` stubs only (not used by preStop) |
 | `poc/run-poc.sh` | Validates, tests, and collects evidence |
 | `poc/argocd/nginx-celigo.yaml` | ArgoCD Application for the Celigo shell hook |
 | `poc/argocd/nginx-drain.yaml` | ArgoCD Application for the httpGet `/drain` hook |

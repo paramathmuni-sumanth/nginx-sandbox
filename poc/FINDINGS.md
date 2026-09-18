@@ -19,7 +19,7 @@
 | Shell blocked in `nginx-drain` | `kubectl exec -- /bin/sh` fails | | |
 | Celigo preStop starts a shell | KubeArmor denies `/bin/sh` during deletion | | |
 | Celigo preStop fails | `FailedPreStopHook`; `PRESTOP_RAN` absent | | |
-| HTTP preStop reaches nginx | Access log contains `GET /drain` | | |
+| HTTP preStop reaches conn-mock | Mock log contains `GET /drain` (port 8080) | | |
 | HTTP preStop succeeds | No `FailedPreStopHook` for drain pod UID | | |
 | Deployments recover | Both deployments return to `1/1` | | |
 
@@ -48,8 +48,8 @@ Compare `PodName`, `ProcessName`, `ParentProcessName`, `Source`, `Resource`, and
 - [ ] The current Celigo `exec` preStop is incompatible with shell blocking.
 - [ ] kubelet `httpGet` completes while shell blocking remains enforced.
 - [ ] No KubeArmor exception or `kubearmor-debug=true` label is required.
-- [ ] The POC does not validate real connection draining because nginx
-      `/drain` returns immediately.
+- [ ] The POC drain wait is **conn-mock** (`poc/mock-open-connections.py` on
+      :8080), not nginx `:80` and not a real Celigo service.
 
 ## Recommendation
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""In-process connection counter for the preStop POC. Stdlib only."""
+"""conn-mock for the preStop POC. Tracked in poc/INVENTORY.md. Stdlib only."""
 from __future__ import annotations
 
 import sys
