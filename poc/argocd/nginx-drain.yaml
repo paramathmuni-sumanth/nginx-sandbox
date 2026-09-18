@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: testing
+  project: default
   source:
     repoURL: https://github.com/paramathmuni-sumanth/nginx-sandbox.git
     path: .

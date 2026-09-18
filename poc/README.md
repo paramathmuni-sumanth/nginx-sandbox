@@ -66,7 +66,7 @@ export CTX=platform1-dev/ap-south-1/aws-eks
 ./poc/run-poc.sh status
 ```
 
-Wait until both Applications are `Synced`/`Healthy` in ArgoCD (`testing` project),
+Wait until both Applications are `Synced`/`Healthy` in ArgoCD (`default` project),
 or:
 
 ```bash
