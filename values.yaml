@@ -167,9 +167,21 @@ lifecycle: {}
 # this entire window, so keep it long enough to be observable in the POC.
 terminationGracePeriodSeconds: 60
 
-# Serves /openConnections, /stopServer, and /drain from this chart (no app team).
+# Serves static /openConnections /drain on nginx :80 (always 0). Keep for
+# probes. The real counter is connectionMock on :8080.
 nginxConfig:
   enabled: true
+
+# In-process mock of Celigo /openConnections. GET /hold?seconds=N increments
+# the counter for N seconds; GET /openConnections returns that integer;
+# GET /drain waits until it is 0.
+connectionMock:
+  enabled: true
+  port: 8080
+  image:
+    repository: python
+    tag: "3.12-alpine"
+    pullPolicy: IfNotPresent
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:

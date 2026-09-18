@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nginx-sandbox.fullname" . }}
+  labels:
+    {{- include "nginx-sandbox.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "nginx-sandbox.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+    {{- if .Values.connectionMock.enabled }}
+    - name: mock
+      port: {{ .Values.connectionMock.port }}
+      targetPort: mock
+      protocol: TCP
+    {{- end }}

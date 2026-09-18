@@ -46,6 +46,28 @@ The policy is in the separate worktree:
 
 `~/Desktop/projects/worktrees/foundational-layers-helm-values/kubearmor-prestop-poc/kubearmor/policies/poc-prestop-block-exec.yaml`
 
+## Mock open connections
+
+nginx `:80/openConnections` is still a stub (`0`). PreStop uses `conn-mock` on **:8080**.
+
+| Path | Behaviour |
+|---|---|
+| `GET /openConnections` | current count (in-flight `/hold` requests) |
+| `GET /hold?seconds=25` | count +1, sleep 25s, count −1 |
+| `GET /drain` | wait until count is 0, then 200 |
+| `GET /stopServer` | 200 `stopping` |
+
+```bash
+kubectl --context "$CTX" -n nginx-sandbox port-forward svc/nginx-drain 8080:8080 &
+curl "http://127.0.0.1:8080/openConnections"; echo    # 0
+curl "http://127.0.0.1:8080/hold?seconds=40" &         # count becomes 1
+sleep 1
+curl "http://127.0.0.1:8080/openConnections"; echo    # 1
+kubectl --context "$CTX" -n nginx-sandbox delete pod -l poc-arm=httpget-drain --wait=true
+```
+
+While `/hold` is running, `/drain` must not return until that hold finishes (or 50s).
+
 ## Run
 
 ```bash

@@ -36,14 +36,14 @@ lifecycle:
           echo "PRESTOP_RAN arm=celigo-exec ts=$(date -Is)" > /proc/1/fd/1;
           expected="0"; count="";
           while ! [ "$count" = "$expected" ]; do
-            count=$(wget -qO- 'http://localhost:80/openConnections');
+            count=$(wget -qO- 'http://localhost:8080/openConnections');
             sleep 1;
             if [ "$count" = "$expected" ]; then
               for i in `seq 1 5`; do
-                count=$(wget -qO- 'http://localhost:80/openConnections?terminate=true');
+                count=$(wget -qO- 'http://localhost:8080/openConnections?terminate=true');
                 sleep 5;
               done;
             fi;
           done;
-          wget -qO- 'http://localhost:80/stopServer';
+          wget -qO- 'http://localhost:8080/stopServer';
           echo "Done";

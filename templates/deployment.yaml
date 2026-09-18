@@ -70,7 +70,7 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.nginxConfig.enabled .Values.volumeMounts }}
+          {{- if or .Values.nginxConfig.enabled .Values.connectionMock.enabled .Values.volumeMounts }}
           volumeMounts:
             {{- if .Values.nginxConfig.enabled }}
             - name: nginx-poc
@@ -81,12 +81,40 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.nginxConfig.enabled .Values.volumes }}
+        {{- if .Values.connectionMock.enabled }}
+        - name: conn-mock
+          image: "{{ .Values.connectionMock.image.repository }}:{{ .Values.connectionMock.image.tag }}"
+          imagePullPolicy: {{ .Values.connectionMock.image.pullPolicy }}
+          ports:
+            - name: mock
+              containerPort: {{ .Values.connectionMock.port }}
+              protocol: TCP
+          command:
+            - python
+            - /mock/server.py
+          readinessProbe:
+            httpGet:
+              path: /
+              port: mock
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          volumeMounts:
+            - name: conn-mock
+              mountPath: /mock
+              readOnly: true
+        {{- end }}
+      {{- if or .Values.nginxConfig.enabled .Values.connectionMock.enabled .Values.volumes }}
       volumes:
         {{- if .Values.nginxConfig.enabled }}
         - name: nginx-poc
           configMap:
             name: {{ include "nginx-sandbox.fullname" . }}-nginx
+        {{- end }}
+        {{- if .Values.connectionMock.enabled }}
+        - name: conn-mock
+          configMap:
+            name: {{ include "nginx-sandbox.fullname" . }}-conn-mock
+            defaultMode: 0755
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
