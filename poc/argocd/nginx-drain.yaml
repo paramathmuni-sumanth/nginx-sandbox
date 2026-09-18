@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-drain
+  namespace: argocd
+  labels:
+    poc: kubearmor-prestop
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: testing
+  source:
+    repoURL: https://github.com/paramathmuni-sumanth/nginx-sandbox.git
+    path: .
+    targetRevision: kubearmor-prestop-poc
+    helm:
+      releaseName: nginx-drain
+      valueFiles:
+        - values.yaml
+        - poc/values-httpget-drain.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-sandbox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

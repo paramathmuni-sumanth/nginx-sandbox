@@ -27,7 +27,8 @@ HTTP solution does not weaken shell enforcement.
 - Real services still need a blocking app endpoint (or equivalent design) that
   stops admission, waits for tracked work, and returns success before the
   grace-period deadline.
-- Nothing in this branch deploys automatically. You invoke each cluster action.
+- You apply the two ArgoCD Applications yourself. Do not change the live
+  `nginx-sandbox` Application on `main`.
 
 ## Files
 
@@ -36,7 +37,9 @@ HTTP solution does not weaken shell enforcement.
 | `poc/values-celigo-exec.yaml` | Current Celigo shell-based preStop |
 | `poc/values-httpget-drain.yaml` | Proposed kubelet `httpGet` preStop |
 | `templates/configmap.yaml` | nginx `/openConnections`, `/stopServer`, and `/drain` stand-ins |
-| `poc/run-poc.sh` | Validates, deploys, tests, and collects evidence |
+| `poc/run-poc.sh` | Validates, tests, and collects evidence |
+| `poc/argocd/nginx-celigo.yaml` | ArgoCD Application for the Celigo shell hook |
+| `poc/argocd/nginx-drain.yaml` | ArgoCD Application for the httpGet `/drain` hook |
 | `poc/FINDINGS.md` | Result sheet to complete after the run |
 
 The policy is in the separate worktree:
@@ -55,11 +58,24 @@ chmod +x poc/run-poc.sh
 aws login
 export CTX=platform1-dev/ap-south-1/aws-eks
 
-# Cluster actions: run these yourself, in order.
+# 1. POC-only policy (nginx-sandbox namespace). Do not edit live block-exec.
 ./poc/run-poc.sh policy
-./poc/run-poc.sh deploy
+
+# 2. Two ArgoCD Applications. Apply after this branch is on origin.
+./poc/run-poc.sh deploy-argocd
 ./poc/run-poc.sh status
 ```
+
+Wait until both Applications are `Synced`/`Healthy` in ArgoCD (`testing` project),
+or:
+
+```bash
+kubectl --context "$CTX" -n argocd get applications nginx-celigo nginx-drain
+kubectl --context "$CTX" -n nginx-sandbox get deploy,pods -l poc-arm
+```
+
+Leave the existing `nginx-sandbox` Application on `main` alone. These two apps
+use different Helm release names (`nginx-celigo`, `nginx-drain`).
 
 If Argo prunes a manually applied policy, merge the
 `foundational-layers-helm-values` branch `kubearmor-prestop-poc` into
@@ -104,7 +120,10 @@ because the blocked hook terminates faster than 60 seconds.
 ## Cleanup
 
 ```bash
-./poc/run-poc.sh cleanup
+# Deletes the two Argo Applications (finalizer prunes their workloads).
+# Does not delete the live nginx-sandbox Application or the namespace.
+./poc/run-poc.sh cleanup-argocd
+kubectl --context "$CTX" delete kubearmorclusterpolicy poc-prestop-block-exec
 ```
 
 If the policy was merged into `platform1-dev`, remove it through Git and let

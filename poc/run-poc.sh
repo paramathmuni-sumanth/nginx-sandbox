@@ -11,22 +11,27 @@ readonly CELIGO_RELEASE="nginx-celigo"
 readonly DRAIN_RELEASE="nginx-drain"
 readonly POLICY_NAME="poc-prestop-block-exec"
 readonly POLICY_FILE="${POLICY_FILE:-${HOME}/Desktop/projects/worktrees/foundational-layers-helm-values/kubearmor-prestop-poc/kubearmor/policies/poc-prestop-block-exec.yaml}"
+readonly ARGOCD_NS="${ARGOCD_NS:-argocd}"
+readonly ARGOCD_DIR="${SCRIPT_DIR}/argocd"
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") <command>
 
 Commands:
-  validate  Lint and render both releases locally (no cluster access)
-  policy    Apply the POC-only KubeArmor policy
-  deploy    Install the two nginx releases
-  status    Show the policy, pods, hooks, and recent failed-hook events
-  test      Delete one pod from each release and collect evidence
-  cleanup   Uninstall both releases and delete the POC policy/namespace
+  validate       Lint and render both releases locally (no cluster access)
+  policy         Apply the POC-only KubeArmor policy
+  deploy-argocd  Apply the two ArgoCD Applications (preferred)
+  deploy         Helm-install both releases (fallback, not Argo)
+  status         Show the policy, pods, hooks, and recent failed-hook events
+  test           Delete one pod from each release and collect evidence
+  cleanup-argocd Delete the two ArgoCD Applications
+  cleanup        Helm-uninstall both releases and delete the POC policy/namespace
 
 Environment:
   CTX          Kubernetes context (default: ${DEFAULT_CONTEXT})
   NAMESPACE    POC namespace (default: nginx-sandbox)
+  ARGOCD_NS    ArgoCD Applications namespace (default: argocd)
   POLICY_FILE  Absolute path to the POC policy
 EOF
 }
@@ -74,6 +79,14 @@ apply_policy() {
   kubectl --context "$CONTEXT" get kubearmorclusterpolicy "$POLICY_NAME"
 }
 
+deploy_argocd() {
+  require_commands kubectl
+  kubectl --context "$CONTEXT" get kubearmorclusterpolicy "$POLICY_NAME" >/dev/null
+  kubectl --context "$CONTEXT" apply -n "$ARGOCD_NS" -f "$ARGOCD_DIR"
+  kubectl --context "$CONTEXT" -n "$ARGOCD_NS" get applications \
+    -l poc=kubearmor-prestop
+}
+
 deploy() {
   require_commands helm kubectl
   kubectl --context "$CONTEXT" get kubearmorclusterpolicy "$POLICY_NAME" >/dev/null
@@ -116,6 +129,9 @@ pod_for_arm() {
 status() {
   require_commands kubectl helm
   kubectl --context "$CONTEXT" get kubearmorclusterpolicy "$POLICY_NAME"
+  kubectl --context "$CONTEXT" -n "$ARGOCD_NS" get applications \
+    nginx-celigo nginx-drain \
+    --ignore-not-found
   helm list --kube-context "$CONTEXT" --namespace "$NAMESPACE"
   kubectl --context "$CONTEXT" get pods \
     --namespace "$NAMESPACE" \
@@ -245,6 +261,11 @@ test_poc() {
   fi
 }
 
+cleanup_argocd() {
+  require_commands kubectl
+  kubectl --context "$CONTEXT" delete -n "$ARGOCD_NS" -f "$ARGOCD_DIR" --ignore-not-found
+}
+
 cleanup() {
   require_commands helm kubectl
   helm uninstall "$CELIGO_RELEASE" \
@@ -263,9 +284,11 @@ main() {
   case "${1:-}" in
     validate) validate ;;
     policy) apply_policy ;;
+    deploy-argocd) deploy_argocd ;;
     deploy) deploy ;;
     status) status ;;
     test) test_poc ;;
+    cleanup-argocd) cleanup_argocd ;;
     cleanup) cleanup ;;
     *) usage; exit 2 ;;
   esac

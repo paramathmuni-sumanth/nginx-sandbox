@@ -10,8 +10,10 @@
 
 fullnameOverride: nginx-celigo
 
+# Argo CreateNamespace owns the Namespace object. Do not let this release
+# also render a Namespace, or two Applications will fight over it.
 namespace:
-  create: true
+  create: false
   splunkExclude: true
 
 replicaCount: 1
