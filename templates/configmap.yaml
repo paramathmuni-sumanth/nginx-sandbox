@@ -1,0 +1,39 @@
+{{- if .Values.nginxConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nginx-sandbox.fullname" . }}-nginx
+  labels:
+    {{- include "nginx-sandbox.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+        listen       80;
+        listen  [::]:80;
+        server_name  localhost;
+
+        location / {
+            default_type text/plain;
+            return 200 'ok\n';
+        }
+
+        # Same contract Celigo services expose on :5000. This sandbox is idle,
+        # so the body is always 0. The Celigo exec preStop polls this.
+        location = /openConnections {
+            default_type text/plain;
+            return 200 '0';
+        }
+
+        location = /stopServer {
+            default_type text/plain;
+            return 200 'stopping\n';
+        }
+
+        # Platform-owned drain stand-in. kubelet httpGet waits on this 200.
+        # No shell is spawned. Real services would block here until idle.
+        location = /drain {
+            default_type text/plain;
+            return 200 'drained\n';
+        }
+    }
+{{- end }}

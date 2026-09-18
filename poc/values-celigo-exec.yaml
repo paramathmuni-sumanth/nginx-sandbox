@@ -1,0 +1,43 @@
+# App 1 — Celigo's current preStop (exec + sh + wget loop).
+# Policy applies. Expected: hook blocked, ~60s to die, FailedPreStopHook.
+#
+#   helm upgrade --install nginx-celigo . -n nginx-sandbox --create-namespace \
+#     -f values.yaml -f poc/values-celigo-exec.yaml
+
+fullnameOverride: nginx-celigo
+
+namespace:
+  create: true
+  splunkExclude: true
+
+replicaCount: 1
+
+podLabels:
+  kubearmor-policy: block-exec
+  poc-arm: celigo-exec
+
+terminationGracePeriodSeconds: 60
+
+# Copied from celigo/helm-charts charts/microservice/values.yaml, port 80
+# because this sandbox listens on 80 (services use 5000).
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - sh
+        - '-c'
+        - |
+          echo "PRESTOP_RAN arm=celigo-exec ts=$(date -Is)" > /proc/1/fd/1;
+          expected="0"; count="";
+          while ! [ "$count" = "$expected" ]; do
+            count=$(wget -qO- 'http://localhost:80/openConnections');
+            sleep 1;
+            if [ "$count" = "$expected" ]; then
+              for i in `seq 1 5`; do
+                count=$(wget -qO- 'http://localhost:80/openConnections?terminate=true');
+                sleep 5;
+              done;
+            fi;
+          done;
+          wget -qO- 'http://localhost:80/stopServer';
+          echo "Done";

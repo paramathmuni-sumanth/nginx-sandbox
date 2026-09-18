@@ -70,13 +70,27 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- if or .Values.nginxConfig.enabled .Values.volumeMounts }}
           volumeMounts:
+            {{- if .Values.nginxConfig.enabled }}
+            - name: nginx-poc
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            {{- end }}
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.volumes }}
+      {{- if or .Values.nginxConfig.enabled .Values.volumes }}
       volumes:
+        {{- if .Values.nginxConfig.enabled }}
+        - name: nginx-poc
+          configMap:
+            name: {{ include "nginx-sandbox.fullname" . }}-nginx
+        {{- end }}
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

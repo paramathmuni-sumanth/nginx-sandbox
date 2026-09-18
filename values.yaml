@@ -167,6 +167,10 @@ lifecycle: {}
 # this entire window, so keep it long enough to be observable in the POC.
 terminationGracePeriodSeconds: 60
 
+# Serves /openConnections, /stopServer, and /drain from this chart (no app team).
+nginxConfig:
+  enabled: true
+
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
   enabled: false

@@ -1,0 +1,26 @@
+# App 2 — proposed preStop (kubelet httpGet /drain). No shell.
+# Policy applies. Expected: GET /drain in access log, fast exit, no FailedPreStopHook.
+#
+#   helm upgrade --install nginx-drain . -n nginx-sandbox \
+#     -f values.yaml -f poc/values-httpget-drain.yaml
+
+fullnameOverride: nginx-drain
+
+namespace:
+  create: false
+  splunkExclude: true
+
+replicaCount: 1
+
+podLabels:
+  kubearmor-policy: block-exec
+  poc-arm: httpget-drain
+
+terminationGracePeriodSeconds: 60
+
+lifecycle:
+  preStop:
+    httpGet:
+      path: /drain
+      port: 80
+      scheme: HTTP
